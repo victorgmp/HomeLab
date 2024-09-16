@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_SCHEDULE=0 15 * * 1 # Run every Monday at 15:00
+      - TZ=America/Caracas
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # Containers admin UI
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    ports:
+      - "8000:8000"
+      - "9000:9000"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./portainer_data:/data"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Caracas
+    deploy:
+      resources:
+        limits:
+          cpus: '3'
+          memory: 1500M
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"

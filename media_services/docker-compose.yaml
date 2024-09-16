@@ -1,0 +1,199 @@
+version: "3.8"
+
+services:
+  # Dashboard media server
+  homarr:
+    container_name: homarr
+    image: ghcr.io/ajnart/homarr:latest
+    volumes:
+      - ./homarr/configs:/app/data/configs
+      - ./homarr/icons:/app/public/icons
+      - ./homarr/data:/data
+    environment:
+      - TZ=America/Caracas
+    ports:
+      - '7575:7575'
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1000M
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+         
+  # Torrent indexer
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Caracas
+    ports:
+      - 9696:9696
+    volumes:
+      - "./prowlarr:/config"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1000M
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # Movie download manager
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Caracas
+    ports:
+      - "7878:7878"
+    volumes:
+      - "./radarr:/config"
+      - "${STORAGE}/torrents:/downloads"
+      - "${MEDIA}/movies:/movies"
+    deploy:
+      resources:
+        limits:
+          cpus: '3'
+          memory: 1500M
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # Tv Shows download manager
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Caracas
+    ports:
+      - "8989:8989"
+    volumes:
+      - "./sonarr:/config"
+      - ${STORAGE}/torrents:/downloads
+      - "${MEDIA}/tvshows:/tv"
+    deploy:
+      resources:
+        limits:
+          cpus: '3'
+          memory: 1500M
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # Media request management    
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Caracas
+      - JELLYSEERR_LOG_LEVEL=info
+    volumes:
+      - ./jellyseerr/config:/app/config
+    ports:
+      - "5055:5055"
+    restart: unless-stopped
+
+  # Media server
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    network_mode: "host"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Caracas
+      - JELLYFIN_FFmpeg__probesize=300M
+      - JELLYFIN_FFmpeg__analyzeduration=100M
+    ports:
+      - 8096:8096
+    volumes:
+      - "${MEDIA}/tvshows:/data/tvshows"
+      - "${MEDIA}/movies:/data/movies"
+      - "./jellyfin/cache:/cache"
+      - "./jellyfin/config:/config"
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card0:/dev/dri/card0
+    deploy:
+      resources:
+        reservations:
+          cpus: '1'
+          memory: 1000M
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # Shared folders
+  samba:
+    image: dperson/samba # there no tags, only latest
+    container_name: samba
+    command: '-u "${SAMBA_USER};${SAMBA_PASSWORD}" -p -s "media;/media;yes;no" -s "downloads;/downloads;yes;no"'
+    stdin_open: true
+    tty: true
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Caracas
+    ports:
+      - "139:139"
+      - "445:445"
+    read_only: false
+    volumes:
+      - "${MEDIA}:/media"
+      - "${STORAGE}/torrents:/downloads"
+    deploy:
+      resources:
+        limits:
+          cpus: '3'
+          memory: 2000M
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    # Additional options to avoid permission issues
+    extra_hosts:
+      - "samba:127.0.0.1"
+    privileged: true
+    cap_add:
+      - CAP_DAC_OVERRIDE
+      - CAP_DAC_READ_SEARCH
+
+  # Torrent client
+  transmission:
+    image : jaymoulin/transmission:latest
+    container_name: transmission
+    command: transmission-daemon -f -g /config
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Caracas
+    ports:
+      #webUI
+      - "9091:9091/tcp"
+      #DataPorts
+      - "51413:51413/tcp"
+      - "51413:51413/udp"
+    volumes:
+      - "./transmission:/config"
+      - "${STORAGE}/torrents:/downloads"
+    expose:
+      - "9091"
+    deploy:
+      resources:
+        limits:
+          cpus: '3'
+          memory: 2000M
+        reservations:
+          cpus: '0.5'
+          memory: 500M
+    restart: unless-stopped

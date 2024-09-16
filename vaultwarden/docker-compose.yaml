@@ -1,0 +1,21 @@
+version: "3.8"
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    environment:
+      - DOMAIN=${DOMAIN}
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+      - SIGNUPS_ALLOWED=true # Set to true if you want to allow new signups
+      - WEBSOCKET_ENABLED=true
+      - DATABASE_URL=/data/db.sqlite3
+      - LOG_FILE=/data/vaultwarden.log
+      - TZ=America/Caracas
+    volumes:
+      - ./vw-data:/data
+    ports:
+      - "8081:80"
+      # - "443:443" # Use this if you are handling SSL directly in the container
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"

@@ -1,0 +1,91 @@
+version: "3.8"
+
+networks:
+  net:
+    driver: bridge
+    ipam:
+        config:
+        - subnet: 172.25.0.0/16
+
+services:
+  # Nginx proxy manager
+  npm:
+    container_name: nginx-proxy
+    image: 'jc21/nginx-proxy-manager:latest'
+    networks:
+      net:
+        ipv4_address: 172.25.0.4
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+      - "443:443"
+      - "81:81"
+    volumes:
+      - ./nginx/data:/data
+      - ./nginx/letsencrypt:/etc/letsencrypt
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.5'
+          memory: 500M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # Recursive DNS service
+  unbound:
+    container_name: unbound
+    image: mvance/unbound:latest # remember to change this if you're using rpi
+    privileged: true
+    networks:
+      net:
+        ipv4_address: 172.25.0.3
+    environment:
+      TZ: America/Caracas
+    ports:
+      - "5053:53/tcp"
+      - "5053:53/udp"
+    volumes:
+      - ./unbound:/opt/unbound/etc/unbound
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.5'
+          memory: 500M
+    healthcheck:
+      test: ["NONE"]
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    # sysctls:
+    #   - net.core.rmem_max=8388608
+
+  # DNS skinhole
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:latest
+    networks:
+      net:
+        ipv4_address: 172.25.0.2
+    environment:
+      TZ: America/Caracas
+      WEBPASSWORD: ${PIHOLE_PASSWORD}
+      # DNS1: 172.25.0.3#5053 # Point to Unbound for DNS resolution
+      PIHOLE_DNS_: '172.25.0.3#5053'
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "80:80/tcp"
+    volumes:
+      - './pihole/etc-pihole:/etc/pihole'
+      - './pihole/etc-dnsmasq.d:/etc/dnsmasq.d'
+      - "./pihole/resolv.conf:/etc/resolv.conf"
+    # cap_add:
+    #   - NET_ADMIN # Required if you are using Pi-hole as your DHCP server, else not needed
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.5'
+          memory: 500M
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
